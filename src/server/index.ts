@@ -5,6 +5,10 @@ import {
   PauseKey,
 } from "../internal/routing/routing.js";
 import type { PlayingState } from "../internal/gamelogic/gamestate.js";
+import {
+  getInput,
+  printServerHelp,
+} from "../internal/gamelogic/gamelogic.js";
 
 async function main() {
   console.log("Starting Peril server...");
@@ -14,16 +18,30 @@ async function main() {
   console.log("Connected to RabbitMQ");
 
   const ch = await conn.createConfirmChannel();
-  const state: PlayingState = { isPaused: true };
-  await publishJSON(ch, ExchangePerilDirect, PauseKey, state);
-  console.log(`Published pause message to ${ExchangePerilDirect}/${PauseKey}`);
+  printServerHelp();
 
-  await new Promise<void>((resolve) => {
-    process.on("SIGINT", () => resolve());
-  });
+  while (true) {
+    const words = await getInput("> ");
+    if (words.length === 0 || words[0] === "") continue;
+    const cmd = words[0];
+    if (cmd === "pause") {
+      console.log("Sending pause message...");
+      const state: PlayingState = { isPaused: true };
+      await publishJSON(ch, ExchangePerilDirect, PauseKey, state);
+    } else if (cmd === "resume") {
+      console.log("Sending resume message...");
+      const state: PlayingState = { isPaused: false };
+      await publishJSON(ch, ExchangePerilDirect, PauseKey, state);
+    } else if (cmd === "quit") {
+      console.log("Exiting...");
+      break;
+    } else {
+      console.log(`Unknown command: ${cmd}`);
+    }
+  }
 
-  console.log("Shutting down Peril server...");
   await conn.close();
+  process.exit(0);
 }
 
 main().catch((err) => {
