@@ -1,5 +1,14 @@
 import amqp from "amqplib";
-import { clientWelcome } from "../internal/gamelogic/gamelogic.js";
+import {
+  clientWelcome,
+  commandStatus,
+  getInput,
+  printClientHelp,
+  printQuit,
+} from "../internal/gamelogic/gamelogic.js";
+import { GameState } from "../internal/gamelogic/gamestate.js";
+import { commandSpawn } from "../internal/gamelogic/spawn.js";
+import { commandMove } from "../internal/gamelogic/move.js";
 import {
   declareAndBind,
   SimpleQueueType,
@@ -27,12 +36,38 @@ async function main() {
   );
   console.log(`Queue ${queue.queue} declared and bound to ${ExchangePerilDirect}`);
 
-  await new Promise<void>((resolve) => {
-    process.on("SIGINT", () => resolve());
-  });
+  const gs = new GameState(username);
+
+  while (true) {
+    const words = await getInput("> ");
+    if (words.length === 0 || words[0] === "") continue;
+    const cmd = words[0];
+    try {
+      if (cmd === "spawn") {
+        commandSpawn(gs, words);
+      } else if (cmd === "move") {
+        commandMove(gs, words);
+        console.log("Move successful");
+      } else if (cmd === "status") {
+        await commandStatus(gs);
+      } else if (cmd === "help") {
+        printClientHelp();
+      } else if (cmd === "spam") {
+        console.log("Spamming not allowed yet!");
+      } else if (cmd === "quit") {
+        printQuit();
+        break;
+      } else {
+        console.log(`Unknown command: ${cmd}`);
+      }
+    } catch (err) {
+      console.log((err as Error).message);
+    }
+  }
 
   console.log("Shutting down Peril client...");
   await conn.close();
+  process.exit(0);
 }
 
 main().catch((err) => {
