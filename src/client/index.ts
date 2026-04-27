@@ -11,11 +11,15 @@ import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
 import { SimpleQueueType } from "../internal/pubsub/declare.js";
 import { subscribeJSON } from "../internal/pubsub/subscribe.js";
+import { publishJSON } from "../internal/pubsub/publish.js";
 import {
+  ArmyMovesPrefix,
   ExchangePerilDirect,
+  ExchangePerilTopic,
   PauseKey,
 } from "../internal/routing/routing.js";
-import { handlerPause } from "./handlers.js";
+import type { ArmyMove } from "../internal/gamelogic/gamedata.js";
+import { handlerMove, handlerPause } from "./handlers.js";
 
 async function main() {
   console.log("Starting Peril client...");
@@ -37,6 +41,17 @@ async function main() {
     handlerPause(gs),
   );
 
+  await subscribeJSON<ArmyMove>(
+    conn,
+    ExchangePerilTopic,
+    `${ArmyMovesPrefix}.${username}`,
+    `${ArmyMovesPrefix}.*`,
+    SimpleQueueType.Transient,
+    handlerMove(gs),
+  );
+
+  const publishCh = await conn.createConfirmChannel();
+
   while (true) {
     const words = await getInput("> ");
     if (words.length === 0 || words[0] === "") continue;
@@ -45,8 +60,14 @@ async function main() {
       if (cmd === "spawn") {
         commandSpawn(gs, words);
       } else if (cmd === "move") {
-        commandMove(gs, words);
-        console.log("Move successful");
+        const move = commandMove(gs, words);
+        await publishJSON(
+          publishCh,
+          ExchangePerilTopic,
+          `${ArmyMovesPrefix}.${username}`,
+          move,
+        );
+        console.log("Move published successfully");
       } else if (cmd === "status") {
         await commandStatus(gs);
       } else if (cmd === "help") {
