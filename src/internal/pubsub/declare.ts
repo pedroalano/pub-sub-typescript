@@ -20,6 +20,9 @@ export async function declareAndBind(
     durable,
     autoDelete: transient,
     exclusive: transient,
+    arguments: {
+      "x-dead-letter-exchange": "peril_dlx",
+    },
   });
   await ch.bindQueue(queue.queue, exchange, key);
   return [ch, queue];
