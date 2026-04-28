@@ -17,9 +17,10 @@ import {
   ExchangePerilDirect,
   ExchangePerilTopic,
   PauseKey,
+  WarRecognitionsPrefix,
 } from "../internal/routing/routing.js";
-import type { ArmyMove } from "../internal/gamelogic/gamedata.js";
-import { handlerMove, handlerPause } from "./handlers.js";
+import type { ArmyMove, RecognitionOfWar } from "../internal/gamelogic/gamedata.js";
+import { handlerMove, handlerPause, handlerWar } from "./handlers.js";
 
 async function main() {
   console.log("Starting Peril client...");
@@ -31,6 +32,8 @@ async function main() {
   const username = await clientWelcome();
 
   const gs = new GameState(username);
+
+  const publishCh = await conn.createConfirmChannel();
 
   await subscribeJSON<PlayingState>(
     conn,
@@ -47,10 +50,17 @@ async function main() {
     `${ArmyMovesPrefix}.${username}`,
     `${ArmyMovesPrefix}.*`,
     SimpleQueueType.Transient,
-    handlerMove(gs),
+    handlerMove(gs, publishCh, username),
   );
 
-  const publishCh = await conn.createConfirmChannel();
+  await subscribeJSON<RecognitionOfWar>(
+    conn,
+    ExchangePerilTopic,
+    WarRecognitionsPrefix,
+    `${WarRecognitionsPrefix}.*`,
+    SimpleQueueType.Durable,
+    handlerWar(gs),
+  );
 
   while (true) {
     const words = await getInput("> ");
