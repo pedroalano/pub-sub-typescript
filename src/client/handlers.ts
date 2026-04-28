@@ -10,6 +10,7 @@ import {
   ExchangePerilTopic,
   WarRecognitionsPrefix,
 } from "../internal/routing/routing.js";
+import { publishGameLog } from "./index.js";
 
 export function handlerPause(gs: GameState): (ps: PlayingState) => AckType {
   return (ps: PlayingState) => {
@@ -57,6 +58,7 @@ export function handlerMove(
 
 export function handlerWar(
   gs: GameState,
+  publishCh: ConfirmChannel,
 ): (rw: RecognitionOfWar) => Promise<AckType> {
   return async (rw: RecognitionOfWar) => {
     const resolution = handleWar(gs, rw);
@@ -67,9 +69,26 @@ export function handlerWar(
       case WarOutcome.NoUnits:
         return AckType.NackDiscard;
       case WarOutcome.OpponentWon:
-      case WarOutcome.YouWon:
-      case WarOutcome.Draw:
-        return AckType.Ack;
+      case WarOutcome.YouWon: {
+        const message = `${resolution.winner} won a war against ${resolution.loser}`;
+        try {
+          await publishGameLog(publishCh, rw.attacker.username, message);
+          return AckType.Ack;
+        } catch (err) {
+          console.error("Failed to publish game log:", err);
+          return AckType.NackRequeue;
+        }
+      }
+      case WarOutcome.Draw: {
+        const message = `A war between ${resolution.attacker} and ${resolution.defender} resulted in a draw`;
+        try {
+          await publishGameLog(publishCh, rw.attacker.username, message);
+          return AckType.Ack;
+        } catch (err) {
+          console.error("Failed to publish game log:", err);
+          return AckType.NackRequeue;
+        }
+      }
       default:
         console.error("Unknown war outcome:", resolution);
         return AckType.NackDiscard;
