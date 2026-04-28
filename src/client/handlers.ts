@@ -35,13 +35,18 @@ export function handlerMove(
           attacker: move.player,
           defender: gs.getPlayerSnap(),
         };
-        await publishJSON(
-          publishCh,
-          ExchangePerilTopic,
-          `${WarRecognitionsPrefix}.${username}`,
-          rw,
-        );
-        return AckType.NackRequeue;
+        try {
+          await publishJSON(
+            publishCh,
+            ExchangePerilTopic,
+            `${WarRecognitionsPrefix}.${username}`,
+            rw,
+          );
+          return AckType.Ack;
+        } catch (err) {
+          console.error("Failed to publish war recognition:", err);
+          return AckType.NackRequeue;
+        }
       }
       case MoveOutcome.SamePlayer:
       default:
