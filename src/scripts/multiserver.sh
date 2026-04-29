@@ -8,6 +8,9 @@ fi
 
 num_instances=$1
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVER_ENTRY="$SCRIPT_DIR/../server/index.ts"
+
 # Array to store process IDs
 declare -a pids
 
@@ -25,7 +28,7 @@ trap 'cleanup' SIGINT
 
 # Start the specified number of instances of the program in the background
 for (( i=0; i<num_instances; i++ )); do
-  npx tsx ./src/server/index.ts &
+  npx tsx "$SERVER_ENTRY" &
   pids+=($!)
 done
 
