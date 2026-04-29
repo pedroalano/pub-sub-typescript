@@ -24,6 +24,7 @@ export async function subscribe<T>(
     routingKey,
     simpleQueueType,
   );
+  await ch.prefetch(1);
   await ch.consume(queue.queue, async (message: amqp.ConsumeMessage | null) => {
     if (!message) return;
     const data = deserializer(message.content);
