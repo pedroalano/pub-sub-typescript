@@ -1,9 +1,10 @@
 import amqp from "amqplib";
-import {
-  declareAndBind,
-  SimpleQueueType,
-} from "../internal/pubsub/declare.js";
+import { SimpleQueueType } from "../internal/pubsub/declare.js";
 import { publishJSON } from "../internal/pubsub/publish.js";
+import {
+  AckType,
+  subscribeMsgPack,
+} from "../internal/pubsub/subscribe.js";
 import {
   ExchangePerilDirect,
   ExchangePerilTopic,
@@ -15,6 +16,7 @@ import {
   getInput,
   printServerHelp,
 } from "../internal/gamelogic/gamelogic.js";
+import { writeLog, type GameLog } from "../internal/gamelogic/logs.js";
 
 async function main() {
   console.log("Starting Peril server...");
@@ -23,14 +25,24 @@ async function main() {
   const conn = await amqp.connect(rabbitConnString);
   console.log("Connected to RabbitMQ");
 
-  await declareAndBind(
+  await subscribeMsgPack<GameLog>(
     conn,
     ExchangePerilTopic,
     GameLogSlug,
     `${GameLogSlug}.*`,
     SimpleQueueType.Durable,
+    async (log) => {
+      try {
+        await writeLog(log);
+        process.stdout.write("> ");
+        return AckType.Ack;
+      } catch (err) {
+        console.error("writeLog failed:", err);
+        return AckType.NackRequeue;
+      }
+    },
   );
-  console.log(`Declared durable queue ${GameLogSlug} bound to ${ExchangePerilTopic}`);
+  console.log(`Subscribed to ${GameLogSlug} on ${ExchangePerilTopic}`);
 
   const ch = await conn.createConfirmChannel();
   printServerHelp();
